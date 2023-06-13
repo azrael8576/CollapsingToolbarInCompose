@@ -1,11 +1,16 @@
 package com.pencelab.collapsingtoolbarincompose.ui.screens
 
 import androidx.compose.animation.core.FloatExponentialDecaySpec
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -129,5 +134,56 @@ fun Catalog(
                 .height(with(LocalDensity.current) { toolbarState.height.toDp() })
                 .graphicsLayer { translationY = toolbarState.offset }
         )
+        AnimateToolbarOffset(toolbarState, listState, toolbarHeightRange)
+    }
+}
+
+enum class ToolbarStatus {
+    Hidden, Small, Large
+}
+
+@Composable
+fun AnimateToolbarOffset(
+    toolbarState: ToolbarState,
+    listState: LazyListState,
+    toolbarHeightRange: IntRange
+) {
+    val toolbarStatus = deriveToolbarStatus(toolbarState.scrollOffset, toolbarHeightRange)
+
+    LaunchedEffect(toolbarState, listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            when (toolbarStatus) {
+                ToolbarStatus.Hidden -> {
+                    animateTo(toolbarState, toolbarHeightRange.last.toFloat())
+                }
+                ToolbarStatus.Small -> {
+                    animateTo(toolbarState, toolbarHeightRange.first.toFloat())
+                }
+                ToolbarStatus.Large -> {
+                    animateTo(toolbarState, 0f)
+                }
+            }
+        }
+    }
+}
+
+private fun deriveToolbarStatus(scrollOffset: Float, toolbarHeightRange: IntRange): ToolbarStatus {
+    val largeToolbarHalf = toolbarHeightRange.last / 2f
+    val smallToolbarHalf = toolbarHeightRange.first / 2f
+
+    return when {
+        scrollOffset > largeToolbarHalf -> ToolbarStatus.Hidden
+        scrollOffset <= largeToolbarHalf && scrollOffset > smallToolbarHalf -> ToolbarStatus.Small
+        else -> ToolbarStatus.Large
+    }
+}
+
+private suspend fun animateTo(toolbarState: ToolbarState, targetValue: Float) {
+    animate(
+        initialValue = toolbarState.scrollOffset,
+        targetValue = targetValue,
+        animationSpec = tween(durationMillis = 300, easing = LinearEasing)
+    ) { value, _ ->
+        toolbarState.scrollOffset = value
     }
 }
